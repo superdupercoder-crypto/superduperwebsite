@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Site</title>
+</head>
+<body>
+    <h1>hi</h1>
+</body>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dinosaur Game</title>
+    <style>
+        canvas {
+            border: 1px solid black;
+            display: block;
+            margin: auto;
+            background-color: #87CEEB; /* Sky color */
+        }
+        #titleScreen, #levelScreen, #shopScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: Arial, sans-serif;
+            font-size: 48px;
+            color: black;
+            text-align: center;
+        }
+        #startButton, #levelButton, #shopButton, #backToTitle {
+            padding: 10px 20px;
+            font-size: 24px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        .levelButton {
+            padding: 10px 20px;
+            font-size: 20px;
+            cursor: pointer;
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="titleScreen">
+        <div>Dinosaur Game</div>
+        <button id="startButton">Start</button>
+        <button id="levelButton">Level Selection</button>
+        <button id="shopButton">Shop</button>
+    </div>
+    <div id="levelScreen" style="display: none;">
+        <div>Select Level</div>
+        <div id="levels"></div>
+        <button id="backToTitle">Back</button>
+    </div>
+    <div id="shopScreen" style="display: none;">
+        <div>Shop</div>
+        <div>Nuggets: <span id="nuggetsCount">0</span></div>
+        <button id="purchaseSpeedBoost">Speed Boost (1 Nugget)</button>
+        <button id="backToShop">Back</button>
+    </div>
+    <canvas id="gameCanvas" width="1200" height="600" style="display: none;"></canvas>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let nuggets = 0; // Track nuggets collected
+        let currentLevel = 1; // Track the current level
+
+        const character = {
+            x: 50,
+            y: 300,
+            width: 50,
+            height: 50,
+            speed: 5,
+            originalSpeed: 5,
+            gravity: 0.5,
+            jumpPower: 10,
+            isJumping: false,
+            canDoubleJump: false,
+            velocityY: 0,
+            moveLeft: false,
+            moveRight: false,
+            spawnX: 50,
+            spawnY: 300
+        };
+
+        const cacti = [
+            { x: 300, y: 320, width: 20, height: 60 }, // Taller cactus
+            { x: 600, y: 300, width: 20, height: 30 }, // Shorter cactus
+            { x: 900, y: 320, width: 20, height: 60 }  // Taller cactus
+        ];
+
+        const finishFlag = { x: 1100, y: 300, width: 20, height: 60 }; // Finish flag
+
+        function drawSun() {
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(1000, 100, 50, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawCacti() {
+            ctx.fillStyle = 'green';
+            cacti.forEach(cactus => {
+                ctx.fillRect(cactus.x, cactus.y, cactus.width, cactus.height);
+            });
+        }
+
+        function drawFinishFlag() {
+            ctx.fillStyle = 'red';
+            ctx.fillRect(finishFlag.x, finishFlag.y, finishFlag.width, finishFlag.height); // Draw finish flag
+        }
+
+        function drawFloor() {
+            ctx.fillStyle = 'black'; // Ground color
+            ctx.fillRect(0, 370, canvas.width, canvas.height - 370);
+        }
+
+        function drawStickman() {
+            ctx.fillStyle = 'black';
+            ctx.fillRect(character.x + 15, character.y - 20, 20, 20); // Head
+            ctx.fillRect(character.x + 20, character.y, 10, 30); // Body
+            
+            const armLength = 20;
+            
+            if (character.moveRight) {
+                ctx.fillRect(character.x - armLength, character.y + 10, armLength, 5); // Left Arm
+                ctx.fillRect(character.x + 30, character.y + 10, armLength, 5); // Right Arm
+            } else if (character.moveLeft) {
+                ctx.fillRect(character.x + 10, character.y + 10, armLength, 5); // Left Arm
+                ctx.fillRect(character.x + 20, character.y + 10, armLength, 5); // Right Arm
+            } else {
+                ctx.fillRect(character.x + 10, character.y + 10, armLength, 5); // Left Arm
+                ctx.fillRect(character.x + 20, character.y + 10, armLength, 5); // Right Arm
+            }
+
+            ctx.fillRect(character.x + 20, character.y + 30, 5, 20); // Left Leg
+            ctx.fillRect(character.x + 25, character.y + 30, 5, 20); // Right Leg
+        }
+
+        function checkCollision() {
+            for (let cactus of cacti) {
+                if (
+                    character.x < cactus.x + cactus.width &&
+                    character.x + character.width > cactus.x &&
+                    character.y < cactus.y + cactus.height &&
+                    character.y + character.height > cactus.y
+                ) {
+                    // Reset character position to spawn point
+                    character.x = character.spawnX;
+                    character.y = character.spawnY;
+                    character.velocityY = 0; // Reset vertical velocity
+                }
+            }
+
+            // Check for finish flag collision
+            if (
+                character.x < finishFlag.x + finishFlag.width &&
+                character.x + character.width > finishFlag.x &&
+                character.y < finishFlag.y + finishFlag.height &&
+                character.y + character.height > finishFlag.y
+            ) {
+                // Level complete
+                nuggets++; // Award a nugget for finishing the level
+                alert('Level Completed! You earned 1 Dino Nugget.');
+                currentLevel++; // Move to the next level
+                resetLevel(); // Reset level
+            }
+        }
+
+        function update() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Handle character movement
+            if (character.moveRight) {
+                character.x += character.speed;
+            }
+            if (character.moveLeft) {
+                character.x -= character.speed;
+            }
+
+            // Prevent character from going out of bounds
+            if (character.x < 0) character.x = 0; // Left boundary
+            if (character.x + character.width > canvas.width) {
+                character.x = canvas.width - character.width; // Right boundary
+            }
+
+            // Apply gravity
+            if (character.isJumping || character.canDoubleJump) {
+                character.velocityY += character.gravity;
+                character.y += character.velocityY;
+
+                // Check ground collision
+                if (character.y + character.height >= 370) {
+                    character.y = 370 - character.height; // Prevent falling below the ground
+                    character.isJumping = false;
+                    character.canDoubleJump = false; // Reset double jump
+                    character.velocityY = 0; // Reset velocity
+                }
+            }
+
+            drawSun();
+            drawFloor();
+            drawCacti();
+            drawFinishFlag(); // Draw the finish flag
+            drawStickman();
+            checkCollision();
+
+            requestAnimationFrame(update);
+        }
+
+        function resetLevel() {
+            character.x = character.spawnX;
+            character.y = character.spawnY;
+            character.velocityY = 0; // Reset vertical velocity
+            character.isJumping = false; // Reset jump state
+            character.canDoubleJump = false; // Reset double jump
+            // Reset cacti and finish flag positions for next levels
+            if (currentLevel > 1) {
+                cacti.push({ x: Math.random() * 800 + 200, y: 320, width: 20, height: 60 }); // Add a new cactus for each level
+            }
+            // Adjust finish flag position for next levels
+            finishFlag.x = 1100 + (currentLevel - 1) * 100; // Move finish flag further for each level
+            update(); // Start the game loop for the level
+        }
+
+        // Start level selection
+        document.getElementById('startButton').addEventListener('click', () => {
+            document.getElementById('titleScreen').style.display = 'none';
+            canvas.style.display = 'block';
+            resetLevel(); // Start level one
+        });
+
+        // Level selection button
+        document.getElementById('levelButton').addEventListener('click', () => {
+            document.getElementById('titleScreen').style.display = 'none';
+            document.getElementById('levelScreen').style.display = 'flex';
+            createLevelButtons(); // Generate level buttons
+        });
+
+        // Shop button
+        document.getElementById('shopButton').addEventListener('click', () => {
+            document.getElementById('titleScreen').style.display = 'none';
+            document.getElementById('shopScreen').style.display = 'flex';
+            updateNuggetsDisplay(); // Update nuggets display
+        });
+
+        // Back to title from level selection
+        document.getElementById('backToTitle').addEventListener('click', () => {
+            document.getElementById('levelScreen').style.display = 'none';
+            document.getElementById('titleScreen').style.display = 'flex';
+        });
+
+        // Back to title from shop
+        document.getElementById('backToShop').addEventListener('click', () => {
+            document.getElementById('shopScreen').style.display = 'none';
+            document.getElementById('titleScreen').style.display = 'flex';
+        });
+
+        // Function to create level buttons
+        function createLevelButtons() {
+            const levelsContainer = document.getElementById('levels');
+            levelsContainer.innerHTML = ''; // Clear existing buttons
+            for (let i = 1; i <= 10; i++) {
+                const button = document.createElement('button');
+                button.innerText = `Level ${i}`;
+                button.className = 'levelButton';
+                button.disabled = (i > 1); // Disable levels 2-10 initially
+                button.onclick = () => {
+                    if (i === 1) {
+                        resetLevel(); // Start level one
+                    } else {
+                        alert('Level is locked! Complete the previous level first.'); // Alert for locked levels
+                    }
+                };
+                levelsContainer.appendChild(button);
+            }
+        }
+
+        // Purchase speed boost potion
+        document.getElementById('purchaseSpeedBoost').addEventListener('click', () => {
+            if (nuggets > 0) {
+                nuggets--; // Deduct a nugget
+                character.speed = character.originalSpeed * 1.5; // Increase speed
+                updateNuggetsDisplay(); // Update nuggets display
+                alert('Speed Boost Purchased! You are now 1.5x faster.');
+            } else {
+                alert('Not enough nuggets to purchase a speed boost.');
+            }
+        });
+
+        // Update nuggets display
+        function updateNuggetsDisplay() {
+            document.getElementById('nuggetsCount').innerText = nuggets;
+        }
+
+        // Keyboard controls
+        window.addEventListener('keydown', (event) => {
+            if (event.code === 'KeyD') {
+                character.moveRight = true; // Start moving right
+            }
+            if (event.code === 'KeyA') {
+                character.moveLeft = true; // Start moving left
+            }
+            if (event.code === 'KeyW' || event.code === 'Space') {
+                if (!character.isJumping) {
+                    character.isJumping = true; // Start jumping
+                    character.velocityY = -character.jumpPower; // Apply jump
+                } else if (!character.canDoubleJump) {
+                    character.canDoubleJump = true; // Allow double jump
+                    character.velocityY = -character.jumpPower; // Apply double jump
+                }
+            }
+        });
+
+        window.addEventListener('keyup', (event) => {
+            if (event.code === 'KeyD') {
+                character.moveRight = false; // Stop moving right
+            }
+            if (event.code === 'KeyA') {
+                character.moveLeft = false; // Stop moving left
+            }
+        });
+
+        // Start the game loop
+        update();
+    </script>
+</body>
+</html>
